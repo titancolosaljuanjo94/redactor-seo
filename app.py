@@ -152,9 +152,10 @@ def dataforseo_get_results(task_id: str, max_wait_sec: int = 45) -> Dict[str, An
 def analyze_competitors(keyword: str) -> Dict[str, Any]:
     """
     Analiza competencia con DataForSEO.
-    Devuelve: competitors (top 3 aprox), insights y top1 (orgánicos rank 1).
+    Devuelve: competitors (top 3), insights y top1 (orgánicos rank 1 si existen).
+    Si no hay orgánicos, toma los primeros items que tengan 'url'.
     """
-    # ---- Modo demo si no hay credenciales ----
+    # ---- Demo si no hay credenciales ----
     if not DATAFORSEO_LOGIN or not DATAFORSEO_PASSWORD:
         demo_comp = [
             {"url": "https://competitor1.com", "title": f"Guía completa de {keyword}", "wordCount": 2500, "headers": 8},
@@ -169,41 +170,44 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
                 "Enfoque principal: Guías completas",
                 "Tono dominante: Profesional-educativo",
             ],
-            "top1": [demo_comp[0]],  # suplantamos rank=1 con el primero del demo
+            "top1": [demo_comp[0]],
             "serp_raw": {},
         }
 
-    # ---- Llamada real a DataForSEO ----
+    # ---- Llamada real ----
     task_id = dataforseo_create_task(keyword=keyword, location_name="Peru", device="desktop", depth=20)
     res = dataforseo_get_results(task_id)
 
-    items = res["items"] or []
-    # Top-3 orgánicos (aprox para mostrar)
-    competitors = []
-    for it in items:
-        if it.get("type") == "organic":
-            competitors.append({
-                "url": it.get("url"),
-                "title": it.get("title"),
-                "wordCount": 2000,  # placeholder
-                "headers": 8
-            })
-            if len(competitors) >= 3:
-                break
+    items = res.get("items") or []
 
-    # Orgánicos en primer puesto (rank_group == 1)
-    top1 = [
-        {"url": it.get("url"), "title": it.get("title")}
-        for it in items
-        if it.get("type") == "organic" and it.get("rank_group") == 1
-    ]
+    # 1) Preferimos orgánicos
+    organic = [it for it in items if it.get("type") == "organic" and it.get("url")]
+    # 2) Si no hay orgánicos, tomamos cualquier item que tenga URL
+    any_with_url = [it for it in items if it.get("url")]
+
+    picked = organic[:3] if organic else any_with_url[:3]
+
+    competitors = [{
+        "url": it["url"],
+        "title": it.get("title") or it["url"],
+        "wordCount": 2000,   # placeholder
+        "headers": 8         # placeholder
+    } for it in picked]
+
+    # Primer puesto orgánico (si existe)
+    top1 = [{
+        "url": it["url"],
+        "title": it.get("title") or it["url"]
+    } for it in organic if it.get("rank_group") == 1]
 
     insights = [
-        f"Total orgánicos leídos: {len(items)}",
+        f"Total items leídos: {len(items)}",
+        f"Orgánicos detectados: {len(organic)}",
         "Enfoque principal (aprox.): Guías informativas",
         "Tono dominante (aprox.): Profesional",
     ]
-    return {"competitors": competitors, "insights": insights, "top1": top1, "serp_raw": res["raw"]}
+    return {"competitors": competitors, "insights": insights, "top1": top1, "serp_raw": res.get("raw")}
+
 
 # =====================
 # OpenAI helper
@@ -304,34 +308,44 @@ if st.session_state.step == 1:
             except Exception as e:
                 st.error(f"Error al analizar competencia: {e}")
 
-    if st.session_state.competitor_data:
+       if st.session_state.competitor_data:
         st.success(f"¡Perfecto! Encontré competidores para \"{st.session_state.keyword}\"")
 
         colA, colB = st.columns(2)
         with colA:
             st.write("**Top 3 Competidores:**")
             for c in st.session_state.competitor_data["competitors"]:
-                st.write(f"- {c['url']} — {c['title']}")
+                st.markdown(f"- [{c['title']}]({c['url']}) — {c['url']}")
+
         with colB:
             st.write("**Insights clave:**")
             for i in st.session_state.competitor_data["insights"]:
                 st.write(f"- {i}")
 
-        # ⬇️ Mensaje con los primeros puestos (rank_group = 1)
+        # Mensaje de "primer puesto"
         top1 = st.session_state.competitor_data.get("top1") or []
         if top1:
-            enlaces = ", ".join([
-                f"[{c.get('title','(sin título)')}]({c['url']})" if c.get("url") else c.get("title","(sin título)")
-                for c in top1
-            ])
-            st.info(f"**Los competidores que aparecen en primer puesto para esta keyword según DataForSEO son:** {enlaces}")
+            lines = []
+            for c in top1:
+                url = c.get("url")
+                title = c.get("title") or url or "(sin título)"
+                lines.append(f"- [{title}]({url}) — {url}")
+            st.markdown(
+                "**Los competidores que aparecen en primer puesto para esta keyword según DataForSEO son:**\n"
+                + "\n".join(lines)
+            )
         else:
             st.warning("No se detectó un resultado orgánico en primer puesto para esta keyword (posibles features del SERP).")
 
-        # Botón para avanzar cuando el usuario quiera
+        # (Opcional) Ver la respuesta cruda para depurar
+        with st.expander("Ver respuesta bruta de DataForSEO"):
+            st.json(st.session_state.competitor_data.get("serp_raw"))
+
+        # Botón para avanzar
         if st.button("➡️ Continuar al Paso 2", type="primary"):
             st.session_state.step = 2
             st.rerun()
+        
 # =====================
 # Paso 2: Inputs
 # =====================
