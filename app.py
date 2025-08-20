@@ -108,7 +108,7 @@ def dataforseo_create_task(keyword: str, location_name: str = "Peru", device: st
     j = r.json()
     return j["tasks"][0]["id"]
 
-def dataforseo_get_results(task_id: str, max_wait_sec: int = 45) -> Dict[str, Any]:
+def dataforseo_get_results(task_id: str, max_wait_sec: int = 90) -> Dict[str, Any]:
     """
     Espera a que la tarea esté lista usando tasks_ready y luego llama a task_get/{task_id}.
     Tolera 404 temporales mientras la tarea se materializa.
@@ -148,12 +148,88 @@ def dataforseo_get_results(task_id: str, max_wait_sec: int = 45) -> Dict[str, An
             items = []
         return {"raw": j, "items": items}
 
-# analisis de competidores
+# =====================
+# SERP helpers (render bonito y LIVE fallback)
+# =====================
+def build_serp_items(items, max_items=10):
+    """Devuelve filas {pos, title, url} priorizando orgánicos; si no hay, usa cualquier ítem con URL."""
+    if not items:
+        return []
+    organic = [it for it in items if it.get("type") == "organic" and it.get("url")]
+    fallback = [it for it in items if it.get("url")]
+    picked = organic or fallback
+    picked = sorted(
+        picked,
+        key=lambda it: it.get("rank_group") or it.get("rank_absolute") or 9999
+    )[:max_items]
+    rows = []
+    for it in picked:
+        rows.append({
+            "pos": it.get("rank_group") or it.get("rank_absolute") or "",
+            "title": it.get("title") or it.get("url"),
+            "url": it.get("url")
+        })
+    return rows
+
+def render_serp_cards(rows, header="Vista general del SERP"):
+    """Dibuja tarjetas estilo SERP (posición, título, URL en verde)."""
+    if not rows:
+        return
+    if not st.session_state.get("serp_css_done"):
+        st.markdown("""
+<style>
+.serp-card{border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin:10px 0;}
+.serp-pos{display:inline-block;width:28px;height:28px;border:2px solid #ef4444;border-radius:6px;
+          font-weight:700;text-align:center;line-height:24px;margin-right:10px;color:#ef4444;}
+.serp-title a{font-size:16px;text-decoration:none;color:#1a73e8;}
+.serp-url{color:#1f8b24;font-size:13px;margin-top:4px;word-break:break-all;}
+</style>
+        """, unsafe_allow_html=True)
+        st.session_state.serp_css_done = True
+
+    st.write(f"**{header}**")
+    for r in rows:
+        st.markdown(f"""
+<div class="serp-card">
+  <div>
+    <span class="serp-pos">{r['pos']}</span>
+    <span class="serp-title"><a href="{r['url']}" target="_blank">{r['title']}</a></span>
+  </div>
+  <div class="serp-url">{r['url']}</div>
+</div>
+        """, unsafe_allow_html=True)
+
+def dataforseo_serp_live(keyword: str, location_name: str = "Peru", device: str = "desktop", depth: int = 20):
+    """
+    Fallback a endpoint LIVE (sin polling): /v3/serp/google/organic/live/advanced
+    Devuelve items inmediatamente.
+    """
+    url = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
+    payload = [{
+        "keyword": keyword,
+        "language_code": "es",
+        "location_name": location_name,
+        "device": device,
+        "depth": depth
+    }]
+    headers = _dfs_auth_header()
+    headers["Content-Type"] = "application/json"
+    r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=90)
+    r.raise_for_status()
+    j = r.json()
+    try:
+        return j["tasks"][0]["result"][0]["items"], j
+    except Exception:
+        return [], j
+
+# =====================
+# Análisis de competidores
+# =====================
 def analyze_competitors(keyword: str) -> Dict[str, Any]:
     """
     Analiza competencia con DataForSEO.
-    Devuelve: competitors (top 3), insights y top1 (orgánicos rank 1 si existen).
-    Si no hay orgánicos, toma los primeros items que tengan 'url'.
+    Devuelve: competitors (top3), insights, top_organic (primer orgánico real),
+    first_org_rank (posición orgánica mínima), serp_list y serp_raw.
     """
     # ---- Demo si no hay credenciales ----
     if not DATAFORSEO_LOGIN or not DATAFORSEO_PASSWORD:
@@ -162,6 +238,7 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
             {"url": "https://competitor2.com", "title": f"Todo sobre {keyword}", "wordCount": 1800, "headers": 6},
             {"url": "https://competitor3.com", "title": f"{keyword}: Manual definitivo", "wordCount": 3200, "headers": 12},
         ]
+        serp_list = [{"pos": i+1, "title": c["title"], "url": c["url"]} for i, c in enumerate(demo_comp)]
         return {
             "competitors": demo_comp,
             "insights": [
@@ -170,35 +247,48 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
                 "Enfoque principal: Guías completas",
                 "Tono dominante: Profesional-educativo",
             ],
-            "top1": [demo_comp[0]],
+            "top_organic": [demo_comp[0]],
+            "first_org_rank": 1,
+            "serp_list": serp_list,
             "serp_raw": {},
         }
 
-    # ---- Llamada real ----
+    # ---- Asíncrono con polling ----
     task_id = dataforseo_create_task(keyword=keyword, location_name="Peru", device="desktop", depth=20)
-    res = dataforseo_get_results(task_id)
+    res_async = dataforseo_get_results(task_id, max_wait_sec=90)
+    items = res_async.get("items") or []
 
-    items = res.get("items") or []
+    # ---- Fallback a LIVE si no obtuvimos nada útil ----
+    live_json = None
+    if not items:
+        items, live_json = dataforseo_serp_live(keyword=keyword, location_name="Peru", device="desktop", depth=20)
 
-    # 1) Preferimos orgánicos
+    # Preferimos orgánicos para el top3
     organic = [it for it in items if it.get("type") == "organic" and it.get("url")]
-    # 2) Si no hay orgánicos, tomamos cualquier item que tenga URL
     any_with_url = [it for it in items if it.get("url")]
 
     picked = organic[:3] if organic else any_with_url[:3]
-
     competitors = [{
         "url": it["url"],
         "title": it.get("title") or it["url"],
-        "wordCount": 2000,   # placeholder
-        "headers": 8         # placeholder
+        "wordCount": 2000,  # placeholders
+        "headers": 8
     } for it in picked]
 
-    # Primer puesto orgánico (si existe)
-    top1 = [{
-        "url": it["url"],
-        "title": it.get("title") or it["url"]
-    } for it in organic if it.get("rank_group") == 1]
+    # Primer resultado orgánico real (aunque no sea rank 1 por SGE/IA)
+    first_org_rank = None
+    if organic:
+        ranks = [it.get("rank_group") for it in organic if isinstance(it.get("rank_group"), int)]
+        first_org_rank = min(ranks) if ranks else None
+    top_organic = []
+    if first_org_rank is not None:
+        top_organic = [{
+            "url": it["url"],
+            "title": it.get("title") or it["url"],
+            "rank": it.get("rank_group")
+        } for it in organic if it.get("rank_group") == first_org_rank]
+
+    serp_list = build_serp_items(items)
 
     insights = [
         f"Total items leídos: {len(items)}",
@@ -206,8 +296,16 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
         "Enfoque principal (aprox.): Guías informativas",
         "Tono dominante (aprox.): Profesional",
     ]
-    return {"competitors": competitors, "insights": insights, "top1": top1, "serp_raw": res.get("raw")}
-
+    # guardamos el JSON crudo que tengamos (async o live) para debug
+    serp_raw = res_async.get("raw") if res_async.get("raw") else (live_json or {})
+    return {
+        "competitors": competitors,
+        "insights": insights,
+        "top_organic": top_organic,           # lista de primeros orgánicos
+        "first_org_rank": first_org_rank,     # su posición real
+        "serp_list": serp_list,
+        "serp_raw": serp_raw
+    }
 
 # =====================
 # OpenAI helper
@@ -303,7 +401,6 @@ if st.session_state.step == 1:
         st.session_state.keyword = kw.strip()
         with st.spinner("Analizando competencia (DataForSEO)…"):
             try:
-                # ✅ nos quedamos en el Paso 1 para mostrar el mensaje
                 st.session_state.competitor_data = analyze_competitors(st.session_state.keyword)
             except Exception as e:
                 st.error(f"Error al analizar competencia: {e}")
@@ -322,22 +419,21 @@ if st.session_state.step == 1:
             for i in st.session_state.competitor_data["insights"]:
                 st.write(f"- {i}")
 
-        # Mensaje de "primer puesto"
-        top1 = st.session_state.competitor_data.get("top1") or []
-        if top1:
-            lines = []
-            for c in top1:
-                url = c.get("url")
-                title = c.get("title") or url or "(sin título)"
-                lines.append(f"- [{title}]({url}) — {url}")
-            st.markdown(
-                "**Los competidores que aparecen en primer puesto para esta keyword según DataForSEO son:**\n"
-                + "\n".join(lines)
-            )
-        else:
-            st.warning("No se detectó un resultado orgánico en primer puesto para esta keyword (posibles features del SERP).")
+        # Vista tipo SERP (posición + título + URL)
+        serp_rows = st.session_state.competitor_data.get("serp_list") or []
+        if serp_rows:
+            render_serp_cards(serp_rows, header="Vista general del SERP (DataForSEO)")
 
-        # (Opcional) Ver la respuesta cruda para depurar
+        # Mensaje de primer resultado orgánico real
+        first_rank = st.session_state.competitor_data.get("first_org_rank")
+        top_org = st.session_state.competitor_data.get("top_organic") or []
+        if first_rank and top_org:
+            enlaces = ", ".join([f"[{c['title']}]({c['url']})" for c in top_org])
+            st.info(f"**Primer resultado orgánico** (posición {first_rank}) para esta keyword según DataForSEO: {enlaces}")
+        else:
+            st.warning("No se detectó un resultado orgánico en las primeras posiciones (posibles features del SERP como IA/SGE, maps, etc.).")
+
+        # (Opcional) Ver la respuesta bruta para depurar
         with st.expander("Ver respuesta bruta de DataForSEO"):
             st.json(st.session_state.competitor_data.get("serp_raw"))
 
@@ -345,7 +441,7 @@ if st.session_state.step == 1:
         if st.button("➡️ Continuar al Paso 2", type="primary"):
             st.session_state.step = 2
             st.rerun()
-        
+
 # =====================
 # Paso 2: Inputs
 # =====================
