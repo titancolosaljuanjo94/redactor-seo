@@ -1,0 +1,2 @@
+# redactor-seo
+redactor SEO
