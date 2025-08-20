@@ -16,6 +16,9 @@ st.caption("Tu asistente para crear contenido SEO optimizado (Streamlit + DataFo
 DATAFORSEO_LOGIN = st.secrets.get("DATAFORSEO_LOGIN", os.getenv("DATAFORSEO_LOGIN", ""))
 DATAFORSEO_PASSWORD = st.secrets.get("DATAFORSEO_PASSWORD", os.getenv("DATAFORSEO_PASSWORD", ""))
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+# Límite de resultados a mostrar en la vista tipo SERP
+SERP_RESULTS_LIMIT = 5
+
 
 # =====================
 # Estado (equivalente a useState)
@@ -288,7 +291,7 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
             "rank": it.get("rank_group")
         } for it in organic if it.get("rank_group") == first_org_rank]
 
-    serp_list = build_serp_items(items)
+    serp_list = build_serp_items(items, max_items=SERP_RESULTS_LIMIT)
 
     insights = [
         f"Total items leídos: {len(items)}",
