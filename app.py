@@ -148,49 +148,62 @@ def dataforseo_get_results(task_id: str, max_wait_sec: int = 45) -> Dict[str, An
             items = []
         return {"raw": j, "items": items}
 
+# analisis de competidores
 def analyze_competitors(keyword: str) -> Dict[str, Any]:
     """
     Analiza competencia con DataForSEO.
-    Si no hay credenciales, devuelve datos simulados (como tu React).
+    Devuelve: competitors (top 3 aprox), insights y top1 (orgánicos rank 1).
     """
+    # ---- Modo demo si no hay credenciales ----
     if not DATAFORSEO_LOGIN or not DATAFORSEO_PASSWORD:
+        demo_comp = [
+            {"url": "https://competitor1.com", "title": f"Guía completa de {keyword}", "wordCount": 2500, "headers": 8},
+            {"url": "https://competitor2.com", "title": f"Todo sobre {keyword}", "wordCount": 1800, "headers": 6},
+            {"url": "https://competitor3.com", "title": f"{keyword}: Manual definitivo", "wordCount": 3200, "headers": 12},
+        ]
         return {
-            "competitors": [
-                {"url": "competitor1.com", "title": f"Guía completa de {keyword}", "wordCount": 2500, "headers": 8},
-                {"url": "competitor2.com", "title": f"Todo sobre {keyword}", "wordCount": 1800, "headers": 6},
-                {"url": "competitor3.com", "title": f"{keyword}: Manual definitivo", "wordCount": 3200, "headers": 12},
-            ],
+            "competitors": demo_comp,
             "insights": [
                 "Promedio de palabras: 2,500",
                 "Headers promedio: 8-12",
                 "Enfoque principal: Guías completas",
                 "Tono dominante: Profesional-educativo",
             ],
+            "top1": [demo_comp[0]],  # suplantamos rank=1 con el primero del demo
             "serp_raw": {},
         }
 
+    # ---- Llamada real a DataForSEO ----
     task_id = dataforseo_create_task(keyword=keyword, location_name="Peru", device="desktop", depth=20)
     res = dataforseo_get_results(task_id)
 
+    items = res["items"] or []
+    # Top-3 orgánicos (aprox para mostrar)
     competitors = []
-    for it in res["items"]:
+    for it in items:
         if it.get("type") == "organic":
             competitors.append({
                 "url": it.get("url"),
                 "title": it.get("title"),
-                # placeholders (DataForSEO no devuelve wordcount/headers)
-                "wordCount": 2000,
+                "wordCount": 2000,  # placeholder
                 "headers": 8
             })
             if len(competitors) >= 3:
                 break
 
+    # Orgánicos en primer puesto (rank_group == 1)
+    top1 = [
+        {"url": it.get("url"), "title": it.get("title")}
+        for it in items
+        if it.get("type") == "organic" and it.get("rank_group") == 1
+    ]
+
     insights = [
-        f"Total orgánicos leídos: {len(res['items'])}",
+        f"Total orgánicos leídos: {len(items)}",
         "Enfoque principal (aprox.): Guías informativas",
         "Tono dominante (aprox.): Profesional",
     ]
-    return {"competitors": competitors, "insights": insights, "serp_raw": res["raw"]}
+    return {"competitors": competitors, "insights": insights, "top1": top1, "serp_raw": res["raw"]}
 
 # =====================
 # OpenAI helper
@@ -278,21 +291,22 @@ st.divider()
 # =====================
 if st.session_state.step == 1:
     st.subheader("Paso 1: Research de Competencia")
-    kw = st.text_input("Keyword objetivo", value=st.session_state.keyword, placeholder="ej: cómo verificar identidad en Perú")
+    kw = st.text_input("Keyword objetivo", value=st.session_state.keyword,
+                       placeholder="ej: cómo verificar identidad en Perú")
     go = st.button("🔎 Analizar competencia", type="primary", disabled=not kw.strip())
 
     if go:
         st.session_state.keyword = kw.strip()
         with st.spinner("Analizando competencia (DataForSEO)…"):
             try:
+                # ✅ nos quedamos en el Paso 1 para mostrar el mensaje
                 st.session_state.competitor_data = analyze_competitors(st.session_state.keyword)
-                st.session_state.step = 2
-                st.rerun()
             except Exception as e:
                 st.error(f"Error al analizar competencia: {e}")
 
     if st.session_state.competitor_data:
         st.success(f"¡Perfecto! Encontré competidores para \"{st.session_state.keyword}\"")
+
         colA, colB = st.columns(2)
         with colA:
             st.write("**Top 3 Competidores:**")
@@ -303,6 +317,21 @@ if st.session_state.step == 1:
             for i in st.session_state.competitor_data["insights"]:
                 st.write(f"- {i}")
 
+        # ⬇️ Mensaje con los primeros puestos (rank_group = 1)
+        top1 = st.session_state.competitor_data.get("top1") or []
+        if top1:
+            enlaces = ", ".join([
+                f"[{c.get('title','(sin título)')}]({c['url']})" if c.get("url") else c.get("title","(sin título)")
+                for c in top1
+            ])
+            st.info(f"**Los competidores que aparecen en primer puesto para esta keyword según DataForSEO son:** {enlaces}")
+        else:
+            st.warning("No se detectó un resultado orgánico en primer puesto para esta keyword (posibles features del SERP).")
+
+        # Botón para avanzar cuando el usuario quiera
+        if st.button("➡️ Continuar al Paso 2", type="primary"):
+            st.session_state.step = 2
+            st.rerun()
 # =====================
 # Paso 2: Inputs
 # =====================
