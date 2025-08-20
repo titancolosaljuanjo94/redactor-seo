@@ -382,13 +382,14 @@ def download_md_button(filename: str, content: str):
 # Progress (paridad con barra de pasos)
 # =====================
 with st.container():
-    cols = st.columns(4)
-    labels = ["Research", "Inputs", "Estructura", "Redacción"]
-    for i, c in enumerate(cols, start=1):
-        with c:
-            filled = (st.session_state.step >= i)
-            st.metric(label=labels[i-1], value=("✅" if filled else "—"))
+    render_simple_navigation()
+    
+st.divider()
 
+with st.container():
+    render_navigation_buttons()
+    
+show_quick_navigation()  # Opcional
 st.divider()
 
 # =====================
