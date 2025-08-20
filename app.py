@@ -79,7 +79,15 @@ def get_structure_options(kw: str) -> List[Dict[str, Any]]:
         },
     ]
 
-# ---- DataForSEO helpers ----
+# =====================
+# DataForSEO helpers
+# =====================
+def _dfs_auth_header():
+    """Cabecera Authorization: Basic user:password (base64)."""
+    import base64
+    token = base64.b64encode(f"{DATAFORSEO_LOGIN}:{DATAFORSEO_PASSWORD}".encode()).decode()
+    return {"Authorization": "Basic " + token}
+
 def dataforseo_create_task(keyword: str, location_name: str = "Peru", device: str = "desktop", depth: int = 20) -> str:
     """
     Crea una tarea SERP en DataForSEO y devuelve task_id.
@@ -92,40 +100,53 @@ def dataforseo_create_task(keyword: str, location_name: str = "Peru", device: st
         "device": device,
         "depth": depth
     }]
-    headers = {"Content-Type": "application/json",
-               "Authorization": "Basic " + (os.environ.get("DFS_AUTH") or "")}
-    # Si no hay DFS_AUTH precomputado, lo generamos on the fly con login:password
-    if not os.environ.get("DFS_AUTH") and DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD:
-        import base64
-        headers["Authorization"] = "Basic " + base64.b64encode(f"{DATAFORSEO_LOGIN}:{DATAFORSEO_PASSWORD}".encode()).decode()
+    headers = _dfs_auth_header()
+    headers["Content-Type"] = "application/json"
 
     r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=60)
     r.raise_for_status()
     j = r.json()
     return j["tasks"][0]["id"]
 
-def dataforseo_get_results(task_id: str, max_wait_sec: int = 25) -> Dict[str, Any]:
+def dataforseo_get_results(task_id: str, max_wait_sec: int = 45) -> Dict[str, Any]:
     """
-    Polling simple hasta obtener resultados del task_id.
+    Espera a que la tarea esté lista usando tasks_ready y luego llama a task_get/{task_id}.
+    Tolera 404 temporales mientras la tarea se materializa.
     """
-    get_url = f"https://api.dataforseo.com/v3/serp/google/organic/task_get/{task_id}"
     start = time.time()
-    headers = {"Authorization": "Basic " + (os.environ.get("DFS_AUTH") or "")}
-    if not os.environ.get("DFS_AUTH") and DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD:
-        import base64
-        headers["Authorization"] = "Basic " + base64.b64encode(f"{DATAFORSEO_LOGIN}:{DATAFORSEO_PASSWORD}".encode()).decode()
+    headers = _dfs_auth_header()
 
+    # 1) Esperar a que la tarea aparezca en tasks_ready
+    ready_url = "https://api.dataforseo.com/v3/serp/google/organic/tasks_ready"
+    while True:
+        r = requests.get(ready_url, headers=headers, timeout=60)
+        r.raise_for_status()
+        jr = r.json()
+
+        if any(t.get("id") == task_id for t in jr.get("tasks", [])):
+            break
+        if time.time() - start > max_wait_sec:
+            # Si no apareció en ready, continuamos igual con task_get.
+            break
+        time.sleep(2)
+
+    # 2) Obtener resultados con task_get/{id}, tolerando 404 temporal
+    get_url = f"https://api.dataforseo.com/v3/serp/google/organic/task_get/{task_id}"
     while True:
         r = requests.get(get_url, headers=headers, timeout=60)
+        if r.status_code == 404:
+            if time.time() - start > max_wait_sec:
+                return {"raw": {"note": "timeout waiting for task_get"}, "items": []}
+            time.sleep(2)
+            continue
+
         r.raise_for_status()
         j = r.json()
         try:
             items = j["tasks"][0]["result"][0]["items"]
-            return {"raw": j, "items": items}
         except Exception:
-            if time.time() - start > max_wait_sec:
-                return {"raw": j, "items": []}
-            time.sleep(2)
+            items = []
+        return {"raw": j, "items": items}
 
 def analyze_competitors(keyword: str) -> Dict[str, Any]:
     """
@@ -157,7 +178,8 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
             competitors.append({
                 "url": it.get("url"),
                 "title": it.get("title"),
-                "wordCount": 2000,  # placeholder (DataForSEO no da wordcount)
+                # placeholders (DataForSEO no devuelve wordcount/headers)
+                "wordCount": 2000,
                 "headers": 8
             })
             if len(competitors) >= 3:
@@ -170,13 +192,15 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
     ]
     return {"competitors": competitors, "insights": insights, "serp_raw": res["raw"]}
 
-# ---- OpenAI helper ----
+# =====================
+# OpenAI helper
+# =====================
 def generate_content_with_openai(title: str, keyword: str, structure: Dict[str, Any], tone: str, word_count: int, related_keywords: str, competitor_data: Dict[str, Any]) -> str:
     """
     Redacta con OpenAI. Si no hay clave, devuelve contenido demo (paridad con React).
     """
     if not OPENAI_API_KEY:
-        headers_list = "\\n".join([f"### {h}" for h in structure["headers"]])
+        headers_list = "\n".join([f"### {h}" for h in structure["headers"]])
         return f"""# {title}
 
 ## Introducción
@@ -193,10 +217,11 @@ Este artículo completo sobre "{keyword}" ha sido desarrollado específicamente 
 - Estructura pensada para engagement
 - Call-to-actions estratégicamente ubicados
 """
+
     from openai import OpenAI
     client = OpenAI(api_key=OPENAI_API_KEY)
 
-    competitors_txt = "\\n".join([f"- {c.get('title')} ({c.get('url')})" for c in (competitor_data or {}).get("competitors", [])])
+    competitors_txt = "\n".join([f"- {c.get('title')} ({c.get('url')})" for c in (competitor_data or {}).get("competitors", [])])
     system = "Eres un redactor SEO senior para el mercado peruano. Redacta en español claro, escaneable, con H2/H3."
     prompt = f"""
 Genera un artículo **en Markdown** titulado "{title}" para la keyword principal "{keyword}".
