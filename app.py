@@ -458,7 +458,7 @@ st.divider()
 with st.container():
     render_navigation_buttons()
     
-show_quick_navigation()
+# show_quick_navigation()  # Comentado temporalmente
 st.divider()
 
 # =====================
