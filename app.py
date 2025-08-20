@@ -308,7 +308,7 @@ if st.session_state.step == 1:
             except Exception as e:
                 st.error(f"Error al analizar competencia: {e}")
 
-       if st.session_state.competitor_data:
+    if st.session_state.competitor_data:
         st.success(f"¡Perfecto! Encontré competidores para \"{st.session_state.keyword}\"")
 
         colA, colB = st.columns(2)
