@@ -35,6 +35,75 @@ if "inputs" not in st.session_state:
     }
 if "selected_structure" not in st.session_state: st.session_state.selected_structure = None
 if "final_md" not in st.session_state: st.session_state.final_md = ""
+    # =====================
+# FUNCIONES DE NAVEGACIÓN (AGREGAR AQUÍ)
+# =====================
+
+def render_simple_navigation():
+    """Renderiza indicador de progreso visual"""
+    st.markdown("### 📍 Progreso del Proyecto")
+    
+    cols = st.columns(4)
+    steps = [
+        {"name": "Research", "icon": "🔎"},
+        {"name": "Inputs", "icon": "📝"}, 
+        {"name": "Estructura", "icon": "🏗️"},
+        {"name": "Redacción", "icon": "✍️"}
+    ]
+    
+    current_step = st.session_state.step
+    
+    for i, col in enumerate(cols, start=1):
+        with col:
+            step = steps[i-1]
+            if i < current_step:
+                st.success(f"✅ {step['icon']} {step['name']}")
+            elif i == current_step:
+                st.info(f"🔄 {step['icon']} {step['name']}")
+            else:
+                st.write(f"⏳ {step['icon']} {step['name']}")
+
+def render_navigation_buttons():
+    """Renderiza botones anterior/siguiente"""
+    current_step = st.session_state.step
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col1:
+        if current_step > 1:
+            if st.button("⬅️ Anterior", type="secondary", use_container_width=True):
+                st.session_state.step = current_step - 1
+                st.rerun()
+        else:
+            st.button("⬅️ Anterior", disabled=True, use_container_width=True)
+    
+    with col2:
+        step_names = ["Research", "Inputs", "Estructura", "Redacción"]
+        st.markdown(f"<div style='text-align: center;'><strong>Paso {current_step} de 4: {step_names[current_step-1]}</strong></div>", 
+                   unsafe_allow_html=True)
+    
+    with col3:
+        can_advance, reason = can_advance_to_next_step()
+        
+        if current_step < 4 and can_advance:
+            if st.button("Siguiente ➡️", type="primary", use_container_width=True):
+                st.session_state.step = current_step + 1
+                st.rerun()
+        elif current_step < 4:
+            st.button("Siguiente ➡️", disabled=True, use_container_width=True, help=reason)
+
+def can_advance_to_next_step() -> tuple[bool, str]:
+    """Verifica si se puede avanzar"""
+    current_step = st.session_state.step
+    
+    if current_step == 1:
+        return bool(st.session_state.get("competitor_data")), "Completa el análisis de competencia primero"
+    elif current_step == 2:
+        return bool(st.session_state.inputs.get("title", "").strip()), "Ingresa un título para continuar"
+    elif current_step == 3:
+        return bool(st.session_state.get("selected_structure")), "Selecciona una estructura para continuar"
+    
+    return True, ""
 
 # =====================
 # Utilidades (paridad con tu React)
@@ -379,7 +448,7 @@ def download_md_button(filename: str, content: str):
     )
 
 # =====================
-# Progress (paridad con barra de pasos)
+# Progress con navegación
 # =====================
 with st.container():
     render_simple_navigation()
@@ -389,7 +458,7 @@ st.divider()
 with st.container():
     render_navigation_buttons()
     
-show_quick_navigation()  # Opcional
+show_quick_navigation()
 st.divider()
 
 # =====================
