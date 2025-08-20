@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 # =====================
 # Configuración básica
 # =====================
-st.set_page_config(page_title="SEO Agent - Kmalo", page_icon="🔎", layout="wide")
+st.set_page_config(page_title="SEO Agent - Redactor", page_icon="🔎", layout="wide")
 st.title("SEO Agent - Kmalo")
 st.caption("Tu asistente para crear contenido SEO optimizado (Streamlit + DataForSEO + OpenAI)")
 
