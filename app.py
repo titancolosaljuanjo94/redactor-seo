@@ -623,7 +623,6 @@ if st.session_state.step == 1:
     
     # Aquí continúa tu código normal...
     kw = st.text_input("Keyword objetivo", value=st.session_state.keyword,
-    kw = st.text_input("Keyword objetivo", value=st.session_state.keyword,
                        placeholder="ej: cómo verificar identidad en Perú")
     go = st.button("🔎 Analizar competencia", type="primary", disabled=not kw.strip())
 
