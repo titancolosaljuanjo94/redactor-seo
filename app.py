@@ -378,10 +378,6 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
         "serp_list": serp_list,
         "serp_raw": serp_raw
     }
-# Continuación de tu función analyze_competitors...
-        ],
-        "serp_raw": serp_raw
-    }
 
 # =====================
 # FUNCIONES DE PRUEBA DATAFORSEO (AGREGAR AQUÍ - LÍNEA ~360-370)
