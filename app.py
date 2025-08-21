@@ -378,7 +378,148 @@ def analyze_competitors(keyword: str) -> Dict[str, Any]:
         "serp_list": serp_list,
         "serp_raw": serp_raw
     }
+# Continuación de tu función analyze_competitors...
+        ],
+        "serp_raw": serp_raw
+    }
 
+# =====================
+# FUNCIONES DE PRUEBA DATAFORSEO (AGREGAR AQUÍ - LÍNEA ~360-370)
+# =====================
+
+def test_dataforseo_content_analysis():
+    """
+    Prueba si DataForSEO Content Analysis está disponible en tu plan
+    """
+    if not DATAFORSEO_LOGIN or not DATAFORSEO_PASSWORD:
+        return {"error": "No hay credenciales DataForSEO configuradas"}
+    
+    # URL de prueba
+    test_url = "https://www.example.com"
+    
+    headers = _dfs_auth_header()
+    headers["Content-Type"] = "application/json"
+    
+    # Test 1: Verificar endpoints disponibles
+    st.write("🔍 **Verificando endpoints DataForSEO disponibles...**")
+    
+    try:
+        # Intentar obtener lista de tareas ready
+        ready_url = "https://api.dataforseo.com/v3/on_page/content_parsing/tasks_ready"
+        response = requests.get(ready_url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            st.success("✅ Content Parsing API está disponible")
+            data = response.json()
+            st.write(f"Status code: {data.get('status_code')}")
+            st.write(f"Status message: {data.get('status_message')}")
+        elif response.status_code == 401:
+            st.error("❌ Error de autenticación - verifica tus credenciales")
+            return {"error": "Authentication failed"}
+        elif response.status_code == 402:
+            st.error("❌ Content Parsing no está incluido en tu plan DataForSEO")
+            return {"error": "Content Parsing not available in plan"}
+        else:
+            st.warning(f"⚠️ Response inesperado: {response.status_code}")
+            
+    except Exception as e:
+        st.error(f"❌ Error conectando con DataForSEO: {str(e)}")
+        return {"error": str(e)}
+    
+    # Test 2: Intentar crear una tarea de prueba
+    st.write("🧪 **Probando crear tarea de Content Analysis...**")
+    
+    try:
+        task_url = "https://api.dataforseo.com/v3/on_page/content_parsing/task_post"
+        
+        task_data = [{
+            "url": test_url,
+            "enable_content_parsing": True,
+            "enable_javascript": False
+        }]
+        
+        response = requests.post(
+            task_url,
+            headers=headers,
+            data=json.dumps(task_data),
+            timeout=30
+        )
+        
+        st.write(f"Status code: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            st.success("✅ Tarea creada exitosamente")
+            
+            # Mostrar información detallada
+            st.json(result)
+            
+            if result.get("tasks") and len(result["tasks"]) > 0:
+                task = result["tasks"][0]
+                task_id = task.get("id")
+                task_status = task.get("status_code")
+                task_message = task.get("status_message")
+                
+                st.write(f"**Task ID:** {task_id}")
+                st.write(f"**Status:** {task_status} - {task_message}")
+                
+                if task_status == 20000:
+                    st.success("🎉 ¡Content Analysis funciona perfectamente!")
+                    return {
+                        "success": True,
+                        "task_id": task_id,
+                        "message": "Content Analysis disponible"
+                    }
+                else:
+                    st.warning(f"Task creado pero con status: {task_status}")
+                    
+        elif response.status_code == 402:
+            st.error("❌ Content Analysis no está en tu plan DataForSEO")
+            st.info("💡 Alternativas disponibles:")
+            st.write("- Usar solo SERP API (lo que ya tienes)")
+            st.write("- Upgrade de plan DataForSEO")
+            st.write("- Usar scraping básico como fallback")
+            
+        else:
+            st.error(f"❌ Error creando tarea: {response.status_code}")
+            try:
+                error_data = response.json()
+                st.json(error_data)
+            except:
+                st.write(response.text)
+                
+    except Exception as e:
+        st.error(f"❌ Error en prueba: {str(e)}")
+        return {"error": str(e)}
+    
+    return {"test_completed": True}
+
+def test_dataforseo_basic_serp():
+    """
+    Prueba las funcionalidades SERP que ya sabes que funcionan
+    """
+    st.write("🔍 **Verificando SERP API (que ya usas)...**")
+    
+    try:
+        # Probar con una keyword simple
+        test_keyword = "seo"
+        task_id = dataforseo_create_task(test_keyword, location_name="Peru", device="desktop", depth=10)
+        
+        if task_id:
+            st.success(f"✅ SERP task creado: {task_id}")
+            st.write("Tu SERP API funciona correctamente")
+            return {"serp_works": True}
+        else:
+            st.error("❌ No se pudo crear SERP task")
+            
+    except Exception as e:
+        st.error(f"❌ Error en SERP test: {str(e)}")
+        return {"error": str(e)}
+
+# =====================
+# OpenAI helper (AQUÍ CONTINÚA TU CÓDIGO ORIGINAL)
+# =====================
+def generate_content_with_openai(title: str, keyword: str, structure: Dict[str, Any], tone: str, word_count: int, related_keywords: str, competitor_data: Dict[str, Any]) -> str:
 # =====================
 # OpenAI helper
 # =====================
@@ -466,6 +607,29 @@ st.divider()
 # =====================
 if st.session_state.step == 1:
     st.subheader("Paso 1: Research de Competencia")
+if st.session_state.step == 1:
+    st.subheader("Paso 1: Research de Competencia")
+    
+    # SECCIÓN DE PRUEBA (TEMPORAL)
+    with st.expander("🧪 Probar APIs DataForSEO"):
+        st.write("Verifica qué funcionalidades están disponibles en tu plan:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔍 Probar Content Analysis"):
+                with st.spinner("Probando Content Analysis..."):
+                    result = test_dataforseo_content_analysis()
+        
+        with col2:
+            if st.button("📊 Probar SERP API"):
+                with st.spinner("Probando SERP API..."):
+                    result = test_dataforseo_basic_serp()
+    
+    st.divider()
+    
+    # Aquí continúa tu código normal...
+    kw = st.text_input("Keyword objetivo", value=st.session_state.keyword,
     kw = st.text_input("Keyword objetivo", value=st.session_state.keyword,
                        placeholder="ej: cómo verificar identidad en Perú")
     go = st.button("🔎 Analizar competencia", type="primary", disabled=not kw.strip())
