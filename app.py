@@ -508,6 +508,10 @@ if st.session_state.step == 1:
         # (Opcional) Ver la respuesta bruta para depurar
         with st.expander("Ver respuesta bruta de DataForSEO"):
             st.json(st.session_state.competitor_data.get("serp_raw"))
+        # Al final del if st.session_state.step == 1:
+st.write("DEBUG - competitor_data exists:", bool(st.session_state.get("competitor_data")))
+if st.session_state.get("competitor_data"):
+    st.write("DEBUG - competitor_data keys:", list(st.session_state.competitor_data.keys()))
 
 # =====================
 # Paso 2: Inputs
