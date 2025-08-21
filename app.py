@@ -517,9 +517,6 @@ def test_dataforseo_basic_serp():
 # =====================
 def generate_content_with_openai(title: str, keyword: str, structure: Dict[str, Any], tone: str, word_count: int, related_keywords: str, competitor_data: Dict[str, Any]) -> str:
 # =====================
-# OpenAI helper
-# =====================
-def generate_content_with_openai(title: str, keyword: str, structure: Dict[str, Any], tone: str, word_count: int, related_keywords: str, competitor_data: Dict[str, Any]) -> str:
     """
     Redacta con OpenAI. Si no hay clave, devuelve contenido demo (paridad con React).
     """
