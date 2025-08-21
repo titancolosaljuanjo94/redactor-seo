@@ -902,114 +902,6 @@ if st.session_state.step == 1:
                     st.write("Basada en análisis de competencia:")
                     for i, header in enumerate(suggested, 1):
                         st.write(f"{i}. {header}")
-                
-                # NUEVA SECCIÓN: Configuración del modelo
-                st.divider()
-                st.subheader("🤖 Configuración del Modelo IA")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Selector de modelo
-                    model_options = [
-                        "gpt-4o-mini",
-                        "gpt-4o", 
-                        "gpt-4-turbo",
-                        "gpt-3.5-turbo"
-                    ]
-                    
-                    selected_model = st.selectbox(
-                        "Modelo OpenAI",
-                        options=model_options,
-                        index=0,  # gpt-4o-mini por defecto
-                        help="Selecciona el modelo de IA para generar el contenido"
-                    )
-                    
-                    # Guardar en session state
-                    st.session_state.inputs["ai_model"] = selected_model
-                    
-                    # Información sobre el modelo seleccionado
-                    model_info = {
-                        "gpt-4o-mini": {"speed": "⚡ Rápido", "cost": "💰 Económico", "quality": "📝 Buena"},
-                        "gpt-4o": {"speed": "🚀 Medio", "cost": "💰💰 Moderado", "quality": "✨ Excelente"},
-                        "gpt-4-turbo": {"speed": "🚀 Medio", "cost": "💰💰💰 Alto", "quality": "🎯 Muy buena"},
-                        "gpt-3.5-turbo": {"speed": "⚡⚡ Muy rápido", "cost": "💰 Muy económico", "quality": "📝 Básica"}
-                    }
-                    
-                    info = model_info.get(selected_model, {})
-                    if info:
-                        st.write(f"**{info['speed']} | {info['cost']} | {info['quality']}**")
-                
-                with col2:
-                    # Parámetros del modelo
-                    temperature = st.slider(
-                        "Creatividad (Temperature)",
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=0.6,
-                        step=0.1,
-                        help="0.0 = Muy conservador, 1.0 = Muy creativo"
-                    )
-                    
-                    st.session_state.inputs["temperature"] = temperature
-                    
-                    # Estimación de tokens
-                    estimated_tokens = st.session_state.inputs.get("wordCount", 1500) * 1.3  # Aproximación
-                    st.info(f"📊 **Tokens estimados:** ~{estimated_tokens:,.0f}")
-                    
-                    # Advertencia de costos para modelos premium
-                    if selected_model in ["gpt-4o", "gpt-4-turbo"]:
-                        st.warning("⚠️ Modelo premium: mayor costo por token")
-                    elif selected_model == "gpt-4o-mini":
-                        st.success("✅ Modelo económico recomendado")
-                
-                # Configuración avanzada (desplegable)
-                with st.expander("⚙️ Configuración Avanzada del Modelo"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        max_tokens = st.number_input(
-                            "Max Tokens",
-                            min_value=500,
-                            max_value=4000,
-                            value=int(estimated_tokens * 1.2),
-                            step=100,
-                            help="Límite máximo de tokens para la respuesta"
-                        )
-                        st.session_state.inputs["max_tokens"] = max_tokens
-                        
-                        presence_penalty = st.slider(
-                            "Presence Penalty",
-                            min_value=0.0,
-                            max_value=2.0,
-                            value=0.0,
-                            step=0.1,
-                            help="Penaliza repetición de temas (0.0-2.0)"
-                        )
-                        st.session_state.inputs["presence_penalty"] = presence_penalty
-                    
-                    with col2:
-                        frequency_penalty = st.slider(
-                            "Frequency Penalty", 
-                            min_value=0.0,
-                            max_value=2.0,
-                            value=0.1,
-                            step=0.1,
-                            help="Penaliza repetición de palabras (0.0-2.0)"
-                        )
-                        st.session_state.inputs["frequency_penalty"] = frequency_penalty
-                        
-                        # Modo de optimización
-                        optimization_mode = st.selectbox(
-                            "Modo de Optimización",
-                            ["Balanced", "SEO-Focused", "Creative", "Technical"],
-                            help="Ajusta el enfoque del contenido generado"
-                        )
-                        st.session_state.inputs["optimization_mode"] = optimization_mode
-                
-                # Previsualización de configuración
-                st.info(f"🎯 **Configuración actual:** {selected_model} | Creatividad: {temperature} | Modo: {optimization_mode}")
-                
             else:
                 st.info("Estrategia se generará automáticamente cuando el análisis de contenido esté disponible")
 
@@ -1076,7 +968,7 @@ elif st.session_state.step == 2:
             st.session_state.inputs["relatedKeywords"] = st.text_area(
                 "Keywords relacionadas (coma separadas)",
                 value=current_related,
-                placeholder="ej: carrera enfermería, estudiar enfermería Perú, enfermería UTP",
+                placeholder="ej: carrera medicina, estudiar medicina Perú, medicina UTP",
                 height=90
             )
             
@@ -1111,6 +1003,119 @@ elif st.session_state.step == 2:
                 word_options,
                 index=current_index
             )
+        
+        # SECCIÓN DE CONFIGURACIÓN DEL MODELO (MOVIDA AQUÍ)
+        st.divider()
+        st.subheader("🤖 Configuración del Modelo IA")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Selector de modelo
+            model_options = [
+                "gpt-4o-mini",
+                "gpt-4o", 
+                "gpt-4-turbo",
+                "gpt-3.5-turbo"
+            ]
+            
+            current_model = st.session_state.inputs.get("ai_model", "gpt-4o-mini")
+            model_index = model_options.index(current_model) if current_model in model_options else 0
+            
+            selected_model = st.selectbox(
+                "Modelo OpenAI",
+                options=model_options,
+                index=model_index,
+                help="Selecciona el modelo de IA para generar el contenido"
+            )
+            
+            st.session_state.inputs["ai_model"] = selected_model
+            
+            # Información sobre el modelo seleccionado
+            model_info = {
+                "gpt-4o-mini": {"speed": "⚡ Rápido", "cost": "💰 Económico", "quality": "📝 Buena"},
+                "gpt-4o": {"speed": "🚀 Medio", "cost": "💰💰 Moderado", "quality": "✨ Excelente"},
+                "gpt-4-turbo": {"speed": "🚀 Medio", "cost": "💰💰💰 Alto", "quality": "🎯 Muy buena"},
+                "gpt-3.5-turbo": {"speed": "⚡⚡ Muy rápido", "cost": "💰 Muy económico", "quality": "📝 Básica"}
+            }
+            
+            info = model_info.get(selected_model, {})
+            if info:
+                st.write(f"**{info['speed']} | {info['cost']} | {info['quality']}**")
+        
+        with col2:
+            # Parámetros del modelo
+            temperature = st.slider(
+                "Creatividad (Temperature)",
+                min_value=0.0,
+                max_value=1.0,
+                value=st.session_state.inputs.get("temperature", 0.6),
+                step=0.1,
+                help="0.0 = Muy conservador, 1.0 = Muy creativo"
+            )
+            
+            st.session_state.inputs["temperature"] = temperature
+            
+            # Modo de optimización
+            optimization_mode = st.selectbox(
+                "Modo de Optimización",
+                ["Balanced", "SEO-Focused", "Creative", "Technical"],
+                index=["Balanced", "SEO-Focused", "Creative", "Technical"].index(
+                    st.session_state.inputs.get("optimization_mode", "Balanced")
+                ),
+                help="Ajusta el enfoque del contenido generado"
+            )
+            st.session_state.inputs["optimization_mode"] = optimization_mode
+        
+        # Configuración avanzada (desplegable)
+        with st.expander("⚙️ Configuración Avanzada del Modelo"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                estimated_tokens = st.session_state.inputs.get("wordCount", 1500) * 1.3
+                max_tokens = st.number_input(
+                    "Max Tokens",
+                    min_value=500,
+                    max_value=4000,
+                    value=st.session_state.inputs.get("max_tokens", int(estimated_tokens * 1.2)),
+                    step=100,
+                    help="Límite máximo de tokens para la respuesta"
+                )
+                st.session_state.inputs["max_tokens"] = max_tokens
+                
+                presence_penalty = st.slider(
+                    "Presence Penalty",
+                    min_value=0.0,
+                    max_value=2.0,
+                    value=st.session_state.inputs.get("presence_penalty", 0.0),
+                    step=0.1,
+                    help="Penaliza repetición de temas (0.0-2.0)"
+                )
+                st.session_state.inputs["presence_penalty"] = presence_penalty
+            
+            with col2:
+                frequency_penalty = st.slider(
+                    "Frequency Penalty", 
+                    min_value=0.0,
+                    max_value=2.0,
+                    value=st.session_state.inputs.get("frequency_penalty", 0.1),
+                    step=0.1,
+                    help="Penaliza repetición de palabras (0.0-2.0)"
+                )
+                st.session_state.inputs["frequency_penalty"] = frequency_penalty
+                
+                # Estimación de tokens y costos
+                estimated_tokens = st.session_state.inputs.get("wordCount", 1500) * 1.3
+                st.info(f"📊 **Tokens estimados:** ~{estimated_tokens:,.0f}")
+                
+                # Advertencia de costos para modelos premium
+                if selected_model in ["gpt-4o", "gpt-4-turbo"]:
+                    st.warning("⚠️ Modelo premium: mayor costo por token")
+                elif selected_model == "gpt-4o-mini":
+                    st.success("✅ Modelo económico recomendado")
+        
+        # Previsualización de configuración
+        st.info(f"🎯 **Configuración actual:** {selected_model} | Creatividad: {temperature} | Modo: {optimization_mode}")
             
         submitted = st.form_submit_button("📑 Continuar a Estructuras", type="primary")
         if submitted:
