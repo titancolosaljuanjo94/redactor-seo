@@ -194,25 +194,60 @@ def get_structure_options(kw: str, strategy: Dict = None) -> List[Dict[str, Any]
 
 def get_structure_options_enhanced(keyword: str, inputs: Dict, competitor_data: Dict = None, strategy: Dict = None) -> List[Dict[str, Any]]:
     """
-    Genera estructuras inteligentes usando TODOS los insumos disponibles
+    Genera estructuras basadas en análisis real de competencia (siguiendo tu metodología)
     """
     
-    # Extraer datos de todos los pasos
-    title = inputs.get("title", "")
-    tone = inputs.get("tone", "profesional")
-    word_count = inputs.get("wordCount", 1500)
-    related_keywords = inputs.get("relatedKeywords", "")
-    optimization_mode = inputs.get("optimization_mode", "Balanced")
+    # Si tenemos datos de competencia, usamos análisis real
+    if competitor_data and competitor_data.get("competitors"):
+        structures = generate_competitor_based_structures(competitor_data, keyword, inputs)
+        
+        # Agregar estructura original optimizada si existe
+        if strategy and strategy.get("suggested_headers"):
+            ai_headers = strategy["suggested_headers"]
+            structures.append({
+                "id": 4,
+                "name": "🤖 Estructura IA Original (DataForSEO)",
+                "headers": ai_headers,
+                "description": "Estructura generada por análisis automático de DataForSEO",
+                "best_for": "Alternativa basada en datos automatizados",
+                "optimized": True,
+                "seo_score": 80,
+                "data_sources": len(competitor_data.get("content_analyses", []))
+            })
+        
+        return structures
     
-    # Datos del análisis de competencia
-    competitors = competitor_data.get("competitors", []) if competitor_data else []
-    content_analyses = competitor_data.get("content_analyses", []) if competitor_data else []
+    else:
+        # Fallback a estructuras básicas si no hay datos de competencia
+        return get_structure_options(keyword, strategy)
+        def get_structure_options_enhanced(keyword: str, inputs: Dict, competitor_data: Dict = None, strategy: Dict = None) -> List[Dict[str, Any]]:
+    """
+    Genera estructuras basadas en análisis real de competencia (siguiendo tu metodología)
+    """
     
-    # Análisis inteligente para adaptar estructuras
-    analysis_insights = analyze_content_context(keyword, inputs, competitor_data, strategy)
+    # Si tenemos datos de competencia, usamos análisis real
+    if competitor_data and competitor_data.get("competitors"):
+        structures = generate_competitor_based_structures(competitor_data, keyword, inputs)
+        
+        # Agregar estructura original optimizada si existe
+        if strategy and strategy.get("suggested_headers"):
+            ai_headers = strategy["suggested_headers"]
+            structures.append({
+                "id": 4,
+                "name": "🤖 Estructura IA Original (DataForSEO)",
+                "headers": ai_headers,
+                "description": "Estructura generada por análisis automático de DataForSEO",
+                "best_for": "Alternativa basada en datos automatizados",
+                "optimized": True,
+                "seo_score": 80,
+                "data_sources": len(competitor_data.get("content_analyses", []))
+            })
+        
+        return structures
     
-    # Estructuras base adaptadas dinámicamente
-    structures = []
+    else:
+        # Fallback a estructuras básicas si no hay datos de competencia
+        return get_structure_options(keyword, strategy)
     
     # =====================================
     # Estructura 1: Educativa Inteligente
