@@ -1678,7 +1678,7 @@ def render_analysis_summary():
 # =====================
 # Paso 3: Estructura MEJORADO CON ANÁLISIS COMPLETO
 # =====================
-elif st.session_state.step == 3:
+    elif st.session_state.step == 3:
     st.subheader("Paso 3: Estructura Inteligente con IA")
     
     # Verificar que tenemos datos para trabajar
