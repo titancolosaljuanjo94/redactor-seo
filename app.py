@@ -1605,7 +1605,7 @@ def identify_gaps(competitor_insights: Dict, strategy_insights: Dict) -> List[st
 # =====================
 # PASO 3 MEJORADO - UI
 # =====================
- elif st.session_state.step == 3:
+elif st.session_state.step ==3:
     st.subheader("Paso 3: Seleccionar Estructura Inteligente")
     
     # Mostrar contexto de decisión
